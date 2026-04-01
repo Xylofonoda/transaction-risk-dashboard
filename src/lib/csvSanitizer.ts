@@ -58,8 +58,9 @@ export function validateFile(file: File, rowCount?: number): FileValidationError
 }
 
 // mappings: { csvHeader -> targetField }
-// targetField is one of: 'amount' | 'currency' | 'merchant_name' | 'user_identifier'
-export type TargetField = 'amount' | 'currency' | 'merchant_name' | 'user_identifier'
+// targetField is one of: 'amount' | 'currency' | 'merchant_name' | 'user_identifier' | 'credit_limit'
+// credit_limit is optional — rows without it are still valid
+export type TargetField = 'amount' | 'currency' | 'merchant_name' | 'user_identifier' | 'credit_limit'
 
 export interface RowValidationResult {
   valid: boolean
@@ -83,6 +84,7 @@ export function sanitizeRow(
   const currency = getValue('currency')
   const merchant_name = getValue('merchant_name')
   const user_identifier = getValue('user_identifier')
+  const credit_limit = getValue('credit_limit') // optional — empty string if not mapped
 
   const amountNum = parseFloat(amount)
   if (!amount || isNaN(amountNum) || amountNum <= 0) {
@@ -97,10 +99,14 @@ export function sanitizeRow(
   if (!user_identifier) {
     errors.push('user identifier (email or username) is required')
   }
+  // credit_limit is optional — only validate if provided
+  if (credit_limit && (isNaN(parseFloat(credit_limit)) || parseFloat(credit_limit) <= 0)) {
+    errors.push('credit_limit must be a positive number if provided')
+  }
 
   return {
     valid: errors.length === 0,
     errors,
-    sanitized: { amount, currency, merchant_name, user_identifier },
+    sanitized: { amount, currency, merchant_name, user_identifier, credit_limit },
   }
 }

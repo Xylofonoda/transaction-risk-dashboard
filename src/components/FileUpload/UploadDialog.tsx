@@ -27,8 +27,10 @@ const TARGET_FIELD_LABELS: Record<TargetField, string> = {
   currency: 'Currency',
   merchant_name: 'Merchant Name',
   user_identifier: 'User Email / Identifier',
+  credit_limit: 'Credit Limit (optional)',
 }
-const TARGET_FIELDS: TargetField[] = ['amount', 'currency', 'merchant_name', 'user_identifier']
+const REQUIRED_FIELDS: TargetField[] = ['amount', 'currency', 'merchant_name', 'user_identifier']
+const TARGET_FIELDS: TargetField[] = [...REQUIRED_FIELDS, 'credit_limit']
 
 type Step = 'drop' | 'mapping' | 'preview' | 'uploading' | 'done'
 
@@ -159,7 +161,7 @@ export default function UploadDialog({ open, onClose, onUploadComplete, initialF
 
   function mappingIsComplete() {
     if (!mapping) return false
-    return TARGET_FIELDS.every((f) =>
+    return REQUIRED_FIELDS.every((f) =>
       Object.values(mapping.mappings).includes(f)
     )
   }
@@ -169,6 +171,10 @@ export default function UploadDialog({ open, onClose, onUploadComplete, initialF
   const validatedPreview = mapping
     ? previewRows.map((row) => sanitizeRow(row, mapping.mappings as Record<string, TargetField>))
     : []
+  // Only show credit_limit column in preview if it was actually mapped
+  const previewFields = TARGET_FIELDS.filter(
+    (f) => f !== 'credit_limit' || Object.values(mapping?.mappings ?? {}).includes('credit_limit'),
+  )
 
   // ─── Step 4: Upload ──────────────────────────────────────────────────────
   async function handleUpload() {
@@ -200,16 +206,14 @@ export default function UploadDialog({ open, onClose, onUploadComplete, initialF
       return
     }
 
-    // 3. If the CSV has a credit_limit column, upsert those limits now
-    const creditLimitColName = parsed.headers.find((h) =>
-      /credit.?limit|spending.?limit|user.?limit/i.test(h),
-    )
+    // 3. If credit_limit was mapped, upsert limits for each unique user
+    const creditLimitMapped = Object.entries(allMappings).find(([, v]) => v === 'credit_limit')?.[0]
     const identifierColName = Object.entries(allMappings).find(([, v]) => v === 'user_identifier')?.[0]
-    if (creditLimitColName && identifierColName) {
+    if (creditLimitMapped && identifierColName) {
       const emailToLimit: Record<string, number> = {}
       for (const row of parsed.rows) {
         const email = row[identifierColName]?.toLowerCase()
-        const limit = parseFloat(row[creditLimitColName])
+        const limit = parseFloat(row[creditLimitMapped])
         if (email && !isNaN(limit) && limit > 0) emailToLimit[email] = limit
       }
       const limitUpserts = Object.entries(emailToLimit)
@@ -379,7 +383,7 @@ export default function UploadDialog({ open, onClose, onUploadComplete, initialF
                 <thead className="bg-muted sticky top-0">
                   <tr>
                     <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">#</th>
-                    {TARGET_FIELDS.map((f) => (
+                    {previewFields.map((f) => (
                       <th key={f} className="px-2 py-1.5 text-left font-medium text-muted-foreground">
                         {TARGET_FIELD_LABELS[f]}
                       </th>
@@ -391,7 +395,7 @@ export default function UploadDialog({ open, onClose, onUploadComplete, initialF
                   {validatedPreview.map((row, i) => (
                     <tr key={i} className={row.valid ? '' : 'bg-destructive/5'}>
                       <td className="px-2 py-1.5 text-muted-foreground">{i + 1}</td>
-                      {TARGET_FIELDS.map((f) => (
+                      {previewFields.map((f) => (
                         <td key={f} className="px-2 py-1.5 max-w-[120px] truncate">
                           {row.sanitized[f] || <span className="text-muted-foreground/50">—</span>}
                         </td>
