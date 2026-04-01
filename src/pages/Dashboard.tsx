@@ -145,7 +145,7 @@ export default function Dashboard() {
               </span>
               <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
                 <button
-                  onClick={analyzeAll}
+                  onClick={() => analyzeAll()}
                   disabled={!!analyzeProgress}
                   className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
